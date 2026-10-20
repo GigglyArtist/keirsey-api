@@ -1,27 +1,32 @@
-# KeirseyApi
+# Keirsey API + Web
+Изолированный опросник Кейрси (70 вопросов, 4 шкалы) с веб-интерфейсом.
+Stateless-сервис без базы данных: принимает ответы, считает код психотипа, отдаёт описание.
 
-💧 A project built with the Vapor web framework.
+## Стек
+- **Backend:** Swift, Vapor 4 (SPM)
+- **Frontend:** HTML + Tailwind CSS (CDN) + Vanilla JS, раздаётся из `Public/`
+- **Deploy:** Render.com (Docker)
 
-## Getting Started
-
-To build the project using the Swift Package Manager, run the following command in the terminal from the root of the project:
+## Локальный запуск
 ```bash
-swift build
-```
+swift run                 # http://127.0.0.1:8080
+swift test                # unit-тесты алгоритма + роутов
 
-To run the project and start the server, use the following command:
-```bash
-swift run
-```
+API:
+POST /api/v1/keirsey/result
 
-To execute tests, use the following command:
-```bash
-swift test
-```
+Запрос:
+{ "answers": { "1": "a", "2": "b", "…": "…", "70": "a" } }
 
-### See more
+Ответ 200:
+{ "code": "ESTJ", "title": "Администратор", "description": "…" }
 
-- [Vapor Website](https://vapor.codes)
-- [Vapor Documentation](https://docs.vapor.codes)
-- [Vapor GitHub](https://github.com/vapor)
-- [Vapor Community maintained packages](https://github.com/vapor-community)
+Структура:
+Sources/KeirseyApi/Keirsey/ - домен: алгоритм подсчёта, описания психотипов (без зависимостей от Vapor)
+Sources/KeirseyApi/Controllers/ - HTTP-слой: DTO и валидация входа
+Public/ - фронтенд (index.html, questions.js, app.js)
+Tests/ — XCTest (алгоритм) + Swift Testing (роуты)
+
+Правила подсчёта:
+Ответ «а» = +1 левой букве шкалы (E/S/T/J), «б» = +1 правой (I/N/F/P).
+При равенстве голосов выбирается правая буква (I, N, F, P).
