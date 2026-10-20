@@ -15,11 +15,10 @@ const els = {
   card: document.getElementById("card"),
 };
 
-// перерисовываю карточку целиком при каждом изменении
+// перерисовываем карточку целиком при каждом изменении
 function render() {
   const answered = state.answers.filter(Boolean).length;
   els.progress.style.width = `${(answered / QUESTIONS.length) * 100}%`;
-
   if (state.current >= QUESTIONS.length) {
     renderFinish();
     return;
@@ -27,26 +26,36 @@ function render() {
 
   const q = QUESTIONS[state.current];
   els.counter.textContent = `Вопрос ${state.current + 1} из ${QUESTIONS.length}`;
+  const chosen = state.answers[state.current];
   els.card.innerHTML = `
-    <h2 class="text-xl font-medium text-slate-800">${q.t}</h2>
-    <button data-answer="a" class="w-full text-left rounded-xl border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 p-4 transition">
-      <span class="font-semibold text-indigo-500">а)</span> ${q.a}
-    </button>
-    <button data-answer="b" class="w-full text-left rounded-xl border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 p-4 transition">
-      <span class="font-semibold text-indigo-500">б)</span> ${q.b}
-    </button>
-  `;
+      ${state.current > 0 ? '<button id="back" class="text-sm text-slate-400 hover:text-indigo-500 transition">← Назад</button>' : ""}
+      <h2 class="text-xl font-medium text-slate-800">${q.t}</h2>
+      <button data-answer="a" class="w-full text-left rounded-xl border-2 p-4 transition ${chosen === "a" ? "border-indigo-400 bg-indigo-50" : "border-slate-200 hover:border-indigo-400 hover:bg-indigo-50"}">
+          <span class="font-semibold text-indigo-500">а)</span> ${q.a}
+      </button>
+      <button data-answer="b" class="w-full text-left rounded-xl border-2 p-4 transition ${chosen === "b" ? "border-indigo-400 bg-indigo-50" : "border-slate-200 hover:border-indigo-400 hover:bg-indigo-50"}">
+          <span class="font-semibold text-indigo-500">б)</span> ${q.b}
+      </button>
+    `;
+    
+  const backBtn = document.getElementById("back");
+  if (backBtn) backBtn.addEventListener("click", () => { state.current -= 1; render(); });
 
-  // innerHTML уничтожил старые кнопки вместе с их слушателями, так что вешаю заново
+  // innerHTML уничтожил старые кнопки вместе с их слушателями, так что вешаем заново
   els.card.querySelectorAll("button[data-answer]").forEach((btn) => {
     btn.addEventListener("click", () => choose(btn.dataset.answer));
   });
+  
+  els.card.classList.remove("card-in");
+  void els.card.offsetWidth;
+  els.card.classList.add("card-in");
 }
 
 function choose(variant) {
   state.answers[state.current] = variant;
   state.current += 1;
   render();
+  saveDraft();
 }
 
 function renderFinish() {
@@ -61,7 +70,42 @@ function renderFinish() {
   `;
     
   document.getElementById("submit").addEventListener("click", submitAnswers);
+    
+  els.card.classList.remove("card-in");
+  void els.card.offsetWidth;
+  els.card.classList.add("card-in");
 }
+
+const STORAGE_KEY = "keirsey-draft";
+
+function saveDraft() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    // Валидируем данные
+    if (Array.isArray(draft.answers) && draft.answers.length === QUESTIONS.length) {
+      state.answers = draft.answers;
+      state.current = Math.min(draft.current ?? 0, QUESTIONS.length);
+    }
+  } catch {
+    // черновик побит - молча начинаем заново
+  }
+}
+
+loadDraft();
+
+document.addEventListener("keydown", (e) => {
+  if (state.current >= QUESTIONS.length) return;
+  if (e.code === "KeyA") choose("a");
+  if (e.code === "KeyB") choose("b");
+});
+
+render();
 
 // Связь с сервером
 async function submitAnswers() {
@@ -87,12 +131,12 @@ async function submitAnswers() {
 
     renderResult(await response.json());
   } catch (error) {
-    // Сюда падаю, если ответа НЕТ вовсе: сервер выключен, нет сети, DNS…
+    // Сюда падаем, если ответа НЕТ вовсе: сервер выключен, нет сети, DNS…
     renderError("Не удалось связаться с сервером. Убедитесь, что он запущен, и попробуйте ещё раз.");
   }
 }
 
-// Ошибка Vapor имеет вид {"error": true, "reason": "..."} - вытаскиваю reason
+// Ошибка Vapor имеет вид {"error": true, "reason": "..."} - вытаскиваем reason
 async function extractReason(response) {
   try {
     const body = await response.json();
@@ -116,6 +160,11 @@ function renderResult(result) {
     </button>
   `;
   document.getElementById("restart").addEventListener("click", restart);
+  localStorage.removeItem(STORAGE_KEY);
+    
+  els.card.classList.remove("card-in");
+  void els.card.offsetWidth;
+  els.card.classList.add("card-in");
 }
 
 function renderError(message) {
@@ -127,12 +176,15 @@ function renderError(message) {
     </button>
   `;
   document.getElementById("retry").addEventListener("click", renderFinish);
+    
+  els.card.classList.remove("card-in");
+  void els.card.offsetWidth;
+  els.card.classList.add("card-in");
 }
 
 function restart() {
   state.current = 0;
   state.answers = new Array(QUESTIONS.length).fill(null);
   render();
+  localStorage.removeItem(STORAGE_KEY);
 }
-
-render();
