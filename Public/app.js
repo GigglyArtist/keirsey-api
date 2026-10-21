@@ -6,6 +6,7 @@
 // Состояние = единственный источник правды
 const state = {
   current: 0,                                   // индекс текущего вопроса
+  pending: null,
   answers: new Array(QUESTIONS.length).fill(null), // 'a' | 'b' | null
 };
 
@@ -19,6 +20,7 @@ const els = {
 function render() {
   const answered = state.answers.filter(Boolean).length;
   els.progress.style.width = `${(answered / QUESTIONS.length) * 100}%`;
+
   if (state.current >= QUESTIONS.length) {
     renderFinish();
     return;
@@ -26,36 +28,57 @@ function render() {
 
   const q = QUESTIONS[state.current];
   els.counter.textContent = `Вопрос ${state.current + 1} из ${QUESTIONS.length}`;
-  const chosen = state.answers[state.current];
   els.card.innerHTML = `
-      ${state.current > 0 ? '<button id="back" class="text-sm text-slate-400 hover:text-indigo-500 transition">← Назад</button>' : ""}
-      <h2 class="text-xl font-medium text-slate-800">${q.t}</h2>
-      <button data-answer="a" class="w-full text-left rounded-xl border-2 p-4 transition ${chosen === "a" ? "border-indigo-400 bg-indigo-50" : "border-slate-200 hover:border-indigo-400 hover:bg-indigo-50"}">
-          <span class="font-semibold text-indigo-500">а)</span> ${q.a}
-      </button>
-      <button data-answer="b" class="w-full text-left rounded-xl border-2 p-4 transition ${chosen === "b" ? "border-indigo-400 bg-indigo-50" : "border-slate-200 hover:border-indigo-400 hover:bg-indigo-50"}">
-          <span class="font-semibold text-indigo-500">б)</span> ${q.b}
-      </button>
-    `;
-    
-  const backBtn = document.getElementById("back");
-  if (backBtn) backBtn.addEventListener("click", () => { state.current -= 1; render(); });
+    ${state.current > 0 ? '<button id="back" class="text-sm text-slate-400 hover:text-indigo-500 transition">← Назад</button>' : ""}
+    <h2 class="text-xl font-medium text-slate-800">${q.t}</h2>
+    <button data-answer="a" class="w-full text-left rounded-xl border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 p-4 transition">
+      <span class="font-semibold text-indigo-500">а)</span> ${q.a}
+    </button>
+    <button data-answer="b" class="w-full text-left rounded-xl border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 p-4 transition">
+      <span class="font-semibold text-indigo-500">б)</span> ${q.b}
+    </button>
+    <button id="confirm" disabled class="w-full rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold p-4 transition">
+      Подтвердить ответ
+    </button>
+  `;
 
-  // innerHTML уничтожил старые кнопки вместе с их слушателями, так что вешаем заново
   els.card.querySelectorAll("button[data-answer]").forEach((btn) => {
-    btn.addEventListener("click", () => choose(btn.dataset.answer));
+    btn.addEventListener("click", () => select(btn.dataset.answer));
   });
-  
+  document.getElementById("confirm").addEventListener("click", confirmAnswer);
+  const backBtn = document.getElementById("back");
+  if (backBtn) backBtn.addEventListener("click", () => {
+    state.pending = null;
+    state.current -= 1;
+    render();
+  });
+
   els.card.classList.remove("card-in");
   void els.card.offsetWidth;
   els.card.classList.add("card-in");
 }
 
-function choose(variant) {
-  state.answers[state.current] = variant;
+function select(variant) {
+  state.pending = variant;
+  // Не перерисовываем карточку, только классы и кнопку
+  els.card.querySelectorAll("button[data-answer]").forEach((btn) => {
+    const isSel = btn.dataset.answer === variant;
+    btn.classList.toggle("border-indigo-500", isSel);
+    btn.classList.toggle("bg-indigo-50", isSel);
+    btn.classList.toggle("ring-2", isSel);
+    btn.classList.toggle("ring-indigo-200", isSel);
+    btn.classList.toggle("border-slate-200", !isSel);
+  });
+  document.getElementById("confirm").disabled = false;
+}
+
+function confirmAnswer() {
+  if (!state.pending) return;
+  state.answers[state.current] = state.pending;
+  state.pending = null;
   state.current += 1;
-  render();
   saveDraft();
+  render();
 }
 
 function renderFinish() {
@@ -101,8 +124,9 @@ loadDraft();
 
 document.addEventListener("keydown", (e) => {
   if (state.current >= QUESTIONS.length) return;
-  if (e.code === "KeyA") choose("a");
-  if (e.code === "KeyB") choose("b");
+  if (e.code === "KeyA") select("a");
+  if (e.code === "KeyB") select("b");
+  if (e.code === "Enter") confirmAnswer();
 });
 
 render();
