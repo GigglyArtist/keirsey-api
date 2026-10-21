@@ -123,6 +123,7 @@ function loadDraft() {
 loadDraft();
 
 document.addEventListener("keydown", (e) => {
+  if (e.code === "Escape") { closeModal(); return; }
   if (state.current >= QUESTIONS.length) return;
   if (e.code === "KeyA") select("a");
   if (e.code === "KeyB") select("b");
@@ -179,17 +180,43 @@ function renderResult(result) {
       <h2 class="text-2xl font-semibold text-slate-800">${result.title}</h2>
     </div>
     <p class="text-slate-600 leading-relaxed">${result.description}</p>
+    <button id="full-desc" class="w-full rounded-xl border-2 border-indigo-500 text-indigo-500 hover:bg-indigo-50 font-semibold p-4 transition">
+      Показать полную расшифровку
+    </button>
     <button id="restart" class="w-full rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-semibold p-4 transition">
       Пройти заново
     </button>
   `;
   document.getElementById("restart").addEventListener("click", restart);
+  document.getElementById("full-desc").addEventListener("click", () => openModal(result.code));
   localStorage.removeItem(STORAGE_KEY);
     
   els.card.classList.remove("card-in");
   void els.card.offsetWidth;
   els.card.classList.add("card-in");
 }
+
+function openModal(code) {
+  const full = FULL_DESCRIPTIONS[code] ?? "Текст расшифровки временно отсутствует.";
+  document.getElementById("modal-title").textContent = `${code} — полная расшифровка`;
+  document.getElementById("modal-text").textContent = full;
+  const modal = document.getElementById("modal");
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function closeModal() {
+  const modal = document.getElementById("modal");
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+document.getElementById("modal-close").addEventListener("click", closeModal);
+
+// Клик по затемнённому фону (но не по самому окну) тоже закрывает
+document.getElementById("modal").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
 
 function renderError(message) {
   els.card.innerHTML = `
