@@ -183,11 +183,15 @@ function renderResult(result) {
     <button id="full-desc" class="w-full rounded-xl border-2 border-indigo-500 text-indigo-500 hover:bg-indigo-50 font-semibold p-4 transition">
       Показать полную расшифровку
     </button>
+    <button id="download-img" class="w-full rounded-xl border-2 border-indigo-500 text-indigo-500 hover:bg-indigo-50 font-semibold p-4 transition">
+      Скачать картинку результата
+    </button>
     <button id="restart" class="w-full rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-semibold p-4 transition">
       Пройти заново
     </button>
   `;
   document.getElementById("restart").addEventListener("click", restart);
+  document.getElementById("download-img").addEventListener("click", () => downloadResultImage(result));
   document.getElementById("full-desc").addEventListener("click", () => openModal(result.code));
   localStorage.removeItem(STORAGE_KEY);
     
@@ -238,4 +242,95 @@ function restart() {
   state.answers = new Array(QUESTIONS.length).fill(null);
   render();
   localStorage.removeItem(STORAGE_KEY);
+}
+
+// Скруглённый прямоугольник и перенос текста по ширине
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const probe = line ? line + " " + word : word;
+    if (ctx.measureText(probe).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = probe;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function downloadResultImage(result) {
+  const size = 1080;                       // квадрат под соцсети
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  // Фон-градиент, как на сайте
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, "#6366f1");         // indigo-500
+  grad.addColorStop(0.5, "#a855f7");       // purple-500
+  grad.addColorStop(1, "#ec4899");         // pink-500
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Белая карточка
+  const pad = 70;
+  roundRectPath(ctx, pad, pad, size - pad * 2, size - pad * 2, 48);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+
+  ctx.textAlign = "center";
+
+  // Код психотипа
+  ctx.fillStyle = "#6366f1";
+  ctx.font = "bold 150px system-ui, sans-serif";
+  ctx.fillText(result.code, size / 2, pad + 260);
+
+  // Название
+  ctx.fillStyle = "#1e293b";
+  ctx.font = "600 56px system-ui, sans-serif";
+  ctx.fillText(result.title, size / 2, pad + 350);
+
+  // Описание с переносами, не больше 6 строк с многоточием
+  ctx.fillStyle = "#475569";
+  ctx.font = "36px system-ui, sans-serif";
+  let lines = wrapText(ctx, result.description, size - pad * 2 - 120);
+  if (lines.length > 6) {
+    lines = lines.slice(0, 6);
+    lines[5] += "…";
+  }
+  let y = pad + 440;
+  for (const line of lines) {
+    ctx.fillText(line, size / 2, y);
+    y += 52;
+  }
+
+  // Футер с датой
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "30px system-ui, sans-serif";
+  ctx.fillText("Опросник Кейрси · " + new Date().toLocaleDateString("ru-RU"), size / 2, size - pad - 60);
+
+  // Кодируем в PNG и отдаём браузеру на скачивание
+  canvas.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `keirsey-${result.code}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, "image/png");
 }
